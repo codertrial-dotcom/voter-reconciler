@@ -1,0 +1,48 @@
+name: Build Voter Reconciler Android APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: 2. Set up Java 17 for Android Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 3. Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: 4. Generate Native Android Scaffolding & Inject Permissions
+        run: |
+          # Generates the android/ folder if not present while preserving lib/main.dart and pubspec.yaml
+          flutter create --platforms=android --org in.electoral.reconciler .
+
+          # Inject Internet and Storage permissions into AndroidManifest.xml
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>' "$MANIFEST"
+
+      - name: 5. Install Flutter Dependencies
+        run: flutter pub get
+
+      - name: 6. Compile Release APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: 7. Upload Compiled APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voter-reconciler-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
